@@ -11,7 +11,9 @@ Semua jalan paralel, ringan, tanpa dependensi aneh-aneh.
 | 2 | **Cek propagasi DNS** | A record dicek di 3 resolver sekaligus (Cloudflare, Google, Quad9) — lihat konsistensi + latency masing-masing |
 | 3 | **Cek server hidup gak** | Port 80/443 kebuka gak, berapa ms latency-nya, HTTP status apa, server siapa (Cloudflare, Vercel, dll) |
 | 4 | **WHOIS + SSL** | Siapa yang daftarin domain, kapan kadaluarsa, nameserver apa; juga cek sertifikat SSL — issuer siapa, sisa berapa hari |
-| 5 | **Full audit** | Semua di atas + scan security: port sensitif kebuka, path bocor, header keamanan kurang, cookie gak aman, CORS salah konfigurasi, PII di WHOIS, SSL lemah, AXFR kebocoran |
+| 5 | **Full audit** | Semua di atas + scan security: port sensitif kebuka, path bocor, header keamanan kurang, cookie gak aman, CORS salah konfigurasi, PII di WHOIS, SSL lemah, AXFR kebocoran; + email auth (SPF/DKIM/DMARC); + tech fingerprint (CMS/WAF) |
+| 6 | **Email auth** | Cek SPF / DKIM / DMARC — ada gak record-nya, isinya apa, score 0–3, warning (policy none, multiple SPF, gak ada report address, dsb.) |
+| 7 | **Tech fingerprint** | Deteksi WAF/CDN (Cloudflare, Sucuri, Akamai, Vercel, Fastly, dll.), CMS (WordPress, Laravel, Next.js, React, dsb.), web server (nginx, Apache, IIS, dsb.) |
 
 ## Install
 
@@ -35,6 +37,8 @@ Nanti muncul menu, tinggal pilih nomornya:
  3  Cek server hidup gak
  4  WHOIS + SSL
  5  Full audit
+ 6  Email auth (SPF/DKIM/DMARC)
+ 7  Tech fingerprint (CMS/WAF)
  0  Keluar
 ```
 
@@ -53,6 +57,8 @@ core/
   host_ping.py        TCP port probe + HTTP header check
   domain_whois.py     WHOIS (routing TLD-aware) + cek sertifikat SSL
   security_check.py   9 check security (port, path, header, TLS, WHOIS, AXFR)
+  email_auth.py       SPF / DKIM / DMARC lookup + analisis
+  tech_detect.py      CMS / WAF / web server fingerprinting
 utils/
   display.py          render rich: logo, tabel, status indicator
 ```
@@ -62,3 +68,5 @@ utils/
 - **WHOIS `.id` / `.co.id`** — otomat routing ke `whois.pandi.id`. Di beberapa jaringan port 43 PANDI blocked, jadi timeout — gak crash, error ditampilin aja.
 - **Propagasi DNS** — normalnya A record sama di semua resolver. Kalau beda, kemungkinan TTL masih panjang atau konfigurasi NS bermasalah.
 - **Backend detection** — cara kerjanya heuristik: kalau A record masuk range IP anycast Cloudflare (`104.16.`, `172.67.`, `188.114.`, `190.93.`, `131.0.72.`) atau NS-nya `ns.cloudflare.com` → kemungkinan besar dibalikin Cloudflare. Ini bukan pengganti cek langsung di dashboard Cloudflare.
+- **DKIM detection** — coba 8 selector umum (default, google, mail, k1–s3, dsb.). Kalau domain pake selector custom, gak ketemu — normal, bukan bug.
+- **Tech fingerprint** — HTTP fetch sekali (follow redirect), inspeksi headers + body 8KB pertama. CMS framework yang render client-side (React SPA tanpa marker server-side) mungkin gak terdeteksi.
