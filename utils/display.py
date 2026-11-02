@@ -1,12 +1,14 @@
-"""KMC DNS & Host Checker -- visual engine.
+"""KMC RESOLVX — terminal visual engine.
 
-Dark-mode minimalist terminal UI built on rich.
+A restrained two-tone palette: deep blue for structure, bright cyan for
+emphasis, warm amber for warnings, and red only for failures.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from rich.box import ROUNDED
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
@@ -15,52 +17,60 @@ from rich.text import Text
 
 console = Console()
 
-ENGINE_VERSION = "1.0.0"
+ENGINE_VERSION = "1.1.0"
 AUTHOR = "Bagas Budi Prakasa"
 
+# Palette
+BLUE = "blue"
+CYAN = "cyan"
+BRIGHT_CYAN = "bright_cyan"
+DIM = "dim"
+GREEN = "green"
+AMBER = "yellow"
+RED = "red"
+WHITE = "white"
+MAGENTA = "bright_magenta"
 
-def _ascii_kmc() -> str:
-    """Return the raw KMC ASCII art."""
+
+def _ascii_resolvx() -> str:
     return (
-        "  _  __ __  __  ____\n"
-        " | |/ /|  \\/  |/ ___|\n"
-        " | ' / | |\\/| | |\n"
-        " | . \\ | |  | | |___\n"
-        " |_|\\_\\|_|  |_|\\____|"
+        "   ___     ___  ___  ___   ___  ___   ___\n"
+        "  / _ \\   / _ \\/ _ \\|_ _| |__|/ _ \\|_ _/\n"
+        " | (_) | | (_) | | | || | |_ | (_) || |\n"
+        "  \\__, |  \\__,/|_|_|___| |__|\\__,/|_|\n"
     )
 
 
 def render_logo(status: str = "Operational") -> None:
-    """Display the KMC brand panel using a dim cyan/magenta theme."""
-    art = _ascii_kmc()
+    art = _ascii_resolvx()
     meta = Text()
-    meta.append(" [ KMC NETWORK UTILITY ]\n", style="bold cyan")
-    meta.append("-" * 25 + "\n", style="cyan")
-    meta.append(f"  Engine Ver : {ENGINE_VERSION}\n", style="bright_magenta")
-    meta.append(f"  Author     : {AUTHOR}\n", style="bright_magenta")
-    meta.append(f"  Status     : {status}\n", style="green" if status == "Operational" else "yellow")
+    meta.append("  KMC RESOLVX  ", style=f"bold {BRIGHT_CYAN}")
+    meta.append(f"  v{ENGINE_VERSION}\n", style=DIM)
+    meta.append("  " + "-" * 30 + "\n", style=BLUE)
+    meta.append(f"  author   {AUTHOR}\n", style=DIM)
+    meta.append(f"  status   ", style=DIM)
+    meta.append(status, style=GREEN if status == "Operational" else AMBER)
+    meta.append("\n")
 
-    body = Group(Text(art, style="cyan"), meta)
-    panel = Panel(body, border_style="cyan")
+    body = Group(Text(art, style=BLUE), meta)
+    panel = Panel(body, border_style=BLUE, box=ROUNDED, padding=(1, 2))
     console.print(panel)
 
 
 def status_style(state: str) -> str:
-    """Map a status keyword to a rich color style."""
     s = state.lower()
     if s in ("up", "active", "ok", "open", "reachable", "valid", "secure"):
-        return "green"
+        return GREEN
     if s in ("down", "closed", "failed", "error", "expired"):
-        return "red"
-    return "yellow"
+        return RED
+    return AMBER
 
 
 def make_table(title: str) -> Table:
-    """Create a clean bordered table for results."""
     table = Table(
         title=title,
-        border_style="cyan",
-        title_style="bold cyan",
+        border_style=BLUE,
+        title_style=f"bold {BRIGHT_CYAN}",
         show_lines=False,
         pad_edge=False,
         expand=False,
@@ -69,15 +79,13 @@ def make_table(title: str) -> Table:
 
 
 def kv_table(title: str) -> Table:
-    """Create a two-column table for key/value rows (caller adds rows)."""
     table = make_table(title)
-    table.add_column("Field", style="cyan", no_wrap=True)
-    table.add_column("Value", style="white")
+    table.add_column("Field", style=BLUE, no_wrap=True, width=18)
+    table.add_column("Value", style=WHITE)
     return table
 
 
 def progress_display() -> Live:
-    """Return a Live object usable for streaming progress updates."""
     return Live(console=console, screen=False, auto_refresh=False)
 
 

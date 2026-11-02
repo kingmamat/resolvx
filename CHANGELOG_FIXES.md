@@ -18,6 +18,27 @@ Format tiap entri:
 ```
 
 <!-- ENTRI BARU DI BAWAH BARIS INI -->
+### Fix #5 — Tambah modul email_auth (SPF/DKIM/DMARC) + tech_detect (CMS/WAF)
+| | |
+|---|---|
+| **Tanggal** | 2026-11-02 |
+| **File** | `core/email_auth.py` (baru), `core/tech_detect.py` (baru), `main.py` (opsi 6 & 7), `utils/display.py` (UI redesign v1.1.0), `README.md` |
+| **Masalah** | Fitur email-auth & tech fingerprint belum ada di engine. |
+| **Akar** | Permintaan KMC: perlu cek SPF/DKIM/DMARC dan fingerprint CMS/WAF per domain. |
+| **Fix** | `email_auth.py`: `email_auth_check()` query SPF, DKIM (8 selector umum), DMARC paralel via `asyncio.gather`. Bug: dnspython wrap TXT values dalam `"..."` → `_clean_txt()` strip outer quotes sebelum cek tag `p=`. `tech_detect.py`: `detect_tech()` HTTP fetch sekali, fingerprint WAF/CDN/CMS/web server dari headers + body 8KB. Opsi 5 (full audit) kini 8 sub-check. |
+| **Verifikasi** | Opsi 6 example.com → SPF `v=spf1 -all`, DKIM not found, DMARC `p=reject`, 2 warnings. Opsi 7 example.com → WAF Cloudflare, HTTP 200. |
+| **Pelajaran** | dnspython `rdata.to_text()` untuk TXT records selalu wrap dengan double-quote — harus strip sebelum string matching tag seperti `p=` atau `v=spf1`.
+
+### Fix #4 — Panel render crash: box="ROUNDED" string tidak valid di Rich
+| | |
+|---|---|
+| **Tanggal** | 2026-11-02 |
+| **File** | `utils/display.py` — `render_logo` |
+| **Masalah** | `Panel(..., box="ROUNDED")` → `AttributeError: 'str' object has no attribute 'substitute'`. Rich menginterpretasikan `box` sebagai `Box` object, bukan string. |
+| **Akar** | Rich `Panel.box` parameter tipe `Box \| None`, bukan `str`. Menulis `"ROUNDED"` membuat Rich memanggil `self.box.substitute()` di string → crash. |
+| **Fix** | Import `ROUNDED` dari `rich.box`, ganti `box="ROUNDED"` → `box=ROUNDED`. |
+| **Verifikasi** | `python main.py` menu → opsi 6 & 7 berjalan normal, logo panel ter-render dengan rounded border. |
+| **Pelajaran** | Rich panel/box: selalu pakai objek dari `rich.box` (`ROUNDED`, `SQUARE`, `MINIMAL`, dsb.), bukan string name.
 ### Fix #3 — Ubah main.py dari flag-based CLI ke menu interaktif + perbaiki bug input
 | | |
 |---|---|
