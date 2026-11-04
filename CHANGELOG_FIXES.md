@@ -18,6 +18,16 @@ Format tiap entri:
 ```
 
 <!-- ENTRI BARU DI BAWAH BARIS INI -->
+### Fix #6 — Tambah modul AI slop detector (menu 8)
+| | |
+|---|---|
+| **Tanggal** | 2026-11-04 |
+| **File** | `core/ai_slop_detect.py` (baru), `main.py` (opsi 8 + import + validasi input URL), `README.md` |
+| **Masalah** | tidak ada bug spesifik — penambahan fitur deteksi konten AI. Sebelum integrasi, smoke test menu 8 crash `NameError: name 'name' is not defined` di `main.py:400` karena dispatch masih memanggil variabel lama `name` setelah refaktoring jadi `target`. |
+| **Akar** | refactoring blok input (menambah opsi URL penuh untuk menu 8) mengganti nama variabel `name` → `target` di blok validasi, tapi baris `dispatch[choice](name)` tak ikut diubah. |
+| **Fix** | ganti `dispatch[choice](name)` jadi `dispatch[choice](target)` di `main.py:400`. Detektor inti: `check_ai_slop(url)` fetch HTML via `requests` (UA browser), extract teks utama via `BeautifulSoup` (buang nav/header/footer/script/style), lalu hybrid score: 40% rasio kamus slop EN+ID, 25% burstiness (CV panjang kalimat), 15% uniformitas TTR, 20% repetisi kalimat. Teks < 100 kata → `failed`. |
+| **Verifikasi** | `test_ai_slop_offline.py` 5 test lulus: (1) ekstraksi membuang noise, (2) kamus EN hits≥3 & ID hits≥2 & word boundary benar, (3) skor sintetik AI=53/54 vs human=0 & slang ID=9 (kontras tajam), (4) URL tak ada → `failed: ConnectionError`, (5) port tak buka → `failed: ConnectTimeout` dalam 15.0 detik (timeout efektif). Menu smoke test `printf "8\nhttps://blog.google\n\n0\n"` → skor 0%, 763 kata, sukses tanpa crash. |
+| **Pelajaran** | setelah refactor nama variabel di blok besar (mis. per-cabangan input), grep semua referensinya di scope bawah — tidak cukup compile-check karena `name` adalah nama lokal yang sah di fungsi lain, Python tidak error saat compile, hanya runtime. Selalu jalankan smoke test penuh, bukan hanya `py_compile`. |
 ### Fix #5 — Tambah modul email_auth (SPF/DKIM/DMARC) + tech_detect (CMS/WAF)
 | | |
 |---|---|

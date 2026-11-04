@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import sys
 
 import dns.rdatatype as rtype
@@ -23,6 +24,7 @@ from core.domain_whois import fetch_whois, check_ssl, ssl_status_color
 from core.security_check import security_check
 from core.email_auth import email_auth_check
 from core.tech_detect import detect_tech
+from core.ai_slop_detect import check_ai_slop
 from utils.display import console, render_logo, status_style, kv_table
 
 BLUE = "blue"
@@ -69,6 +71,7 @@ def show_main_menu() -> int:
         ("5", "Full infrastructure & security audit"),
         ("6", "SPF / DKIM / DMARC email-auth check"),
         ("7", "Website technology fingerprint (CMS / WAF)"),
+        ("8", "AI slop / AI content detection"),
         ("0", "Exit"),
     ]
     for num, label in rows:
@@ -76,12 +79,12 @@ def show_main_menu() -> int:
     console.print(table)
 
     while True:
-        raw = input("  select (0-7): ").strip()
-        if raw.isdigit() and 0 <= int(raw) <= 7:
+        raw = input("  select (0-8): ").strip()
+        if raw.isdigit() and 0 <= int(raw) <= 8:
             return int(raw)
         if raw == "":
             return -1
-        console.print(f"  [{DIM}]enter a number between 0 and 7[/{DIM}]")
+        console.print(f"  [{DIM}]enter a number between 0 and 8[/{DIM}]")
 
 
 def _title(section: str, name: str) -> str:
@@ -282,6 +285,49 @@ def run_tech_detect(name: str) -> None:
     console.print(table)
 
 
+def run_ai_slop_detect(target: str) -> None:
+    """Menu 8: deteksi AI slop — menerima domain atau URL penuh."""
+    # Kalau user ketik domain polos, asumsikan https://
+    url = target if target.startswith(("http://", "https://")) else f"https://{target}"
+
+    console.print()
+    result = check_ai_slop(url)
+
+    if result["status"] == "failed":
+        table = kv_table(_title("AI slop detection", url))
+        table.add_row("Status", f"[{RED}]{result['error']}[/{RED}]")
+        console.print(table)
+        return
+
+    score_color = RED if result["ai_slop_score"] >= 65 else (
+        AMBER if result["ai_slop_score"] >= 35 else GREEN
+    )
+    table = kv_table(
+        _title("AI slop detection", url) +
+        f"  [{score_color}]score: {result['ai_slop_score']}%  "
+        f"[{DIM}]({result['confidence_level']} confidence)[/{DIM}][/{score_color}]"
+    )
+    table.add_row("AI slop score", f"[{score_color}]{result['ai_slop_score']}%[/{score_color}]")
+    table.add_row("Confidence", result["confidence_level"])
+    table.add_row("Words analyzed", str(result["word_count"]))
+    table.add_row("Language hint", result["language_hint"] or "(unknown)")
+
+    patterns = result["detected_patterns"]
+    if patterns:
+        for p in patterns:
+            table.add_row(f"Slop: {p['pattern']}", f"[{BRIGHT_CYAN}]×{p['count']}[/{BRIGHT_CYAN}]")
+    else:
+        table.add_row("Slop patterns", f"[{DIM}]none detected[/{DIM}]")
+    console.print(table)
+
+    verdict = (
+        "strong AI-slop indicators" if result["ai_slop_score"] >= 65
+        else "possible AI-slop indicators" if result["ai_slop_score"] >= 35
+        else "no strong AI-slop indicators"
+    )
+    console.print(f"  verdict: [{score_color}]{verdict}[/{score_color}]")
+
+
 def run_full_audit(name: str) -> None:
     run_dns_records(name)
     run_dns_propagation(name)
@@ -293,8 +339,11 @@ def run_full_audit(name: str) -> None:
     run_tech_detect(name)
 
 
-def _prompt_target() -> str:
-    raw = input("  enter domain or IP (e.g., example.com): ").strip()
+def _prompt_target(allow_url: bool = False) -> str:
+    if allow_url:
+        raw = input("  enter URL or domain (e.g., https://example.com/blog): ").strip()
+    else:
+        raw = input("  enter domain or IP (e.g., example.com): ").strip()
     return raw
 
 
@@ -314,17 +363,26 @@ def main() -> None:
         if choice == -1:
             continue
 
-        raw = _prompt_target()
+        raw = _prompt_target(allow_url=(choice == 8))
         if not raw:
             console.print(f"[{DIM}]no target — back to menu[/{DIM}]")
             _return_to_menu()
             continue
 
-        name = sanitize_domain(raw)
-        if not name:
-            console.print(f"[{DIM}]invalid target — back to menu[/{DIM}]")
-            _return_to_menu()
-            continue
+        # Menu 8 (AI slop) butuh URL utuh; lainnya tetap butuh domain polos
+        if choice == 8:
+            target = raw.lower()
+            valid = target.startswith(("http://", "https://")) or re.fullmatch(r"[a-z0-9.-]+", target)
+            if not valid:
+                console.print(f"[{DIM}]invalid URL — back to menu[/{DIM}]")
+                _return_to_menu()
+                continue
+        else:
+            target = sanitize_domain(raw)
+            if not target:
+                console.print(f"[{DIM}]invalid target — back to menu[/{DIM}]")
+                _return_to_menu()
+                continue
 
         dispatch = {
             1: run_dns_records,
@@ -334,11 +392,12 @@ def main() -> None:
             5: run_full_audit,
             6: run_email_auth,
             7: run_tech_detect,
+            8: run_ai_slop_detect,
         }
 
         console.print()
         with Status(f"[{BLUE}]processing target infrastructure...[/{BLUE}]", console=console, spinner="dots"):
-            dispatch[choice](name)
+            dispatch[choice](target)
 
         _return_to_menu()
 
