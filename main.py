@@ -25,6 +25,7 @@ from core.security_check import security_check
 from core.email_auth import email_auth_check
 from core.tech_detect import detect_tech
 from core.ai_slop_detect import check_ai_slop
+from core.database_audit import database_audit
 from utils.display import console, render_logo, status_style, kv_table
 
 BLUE = "blue"
@@ -72,6 +73,7 @@ def show_main_menu() -> int:
         ("6", "SPF / DKIM / DMARC email-auth check"),
         ("7", "Website technology fingerprint (CMS / WAF)"),
         ("8", "AI slop / AI content detection"),
+        ("9", "Database Security & Leakage Recon"),
         ("0", "Exit"),
     ]
     for num, label in rows:
@@ -79,12 +81,12 @@ def show_main_menu() -> int:
     console.print(table)
 
     while True:
-        raw = input("  select (0-8): ").strip()
-        if raw.isdigit() and 0 <= int(raw) <= 8:
+        raw = input("  select (0-9): ").strip()
+        if raw.isdigit() and 0 <= int(raw) <= 9:
             return int(raw)
         if raw == "":
             return -1
-        console.print(f"  [{DIM}]enter a number between 0 and 8[/{DIM}]")
+        console.print(f"  [{DIM}]enter a number between 0 and 9[/{DIM}]")
 
 
 def _title(section: str, name: str) -> str:
@@ -328,6 +330,50 @@ def run_ai_slop_detect(target: str) -> None:
     console.print(f"  verdict: [{score_color}]{verdict}[/{score_color}]")
 
 
+def run_database_audit(name: str) -> None:
+    """Menu 9: Database Security & Leakage Recon."""
+    async def _audit() -> object:
+        return await database_audit(name)
+
+    console.print()
+    report = asyncio.run(_audit())
+
+    table = Table(
+        title=_title("Database Security & Leakage Recon", name),
+        border_style=BLUE,
+        title_style=f"bold {BRIGHT_CYAN}"
+    )
+    table.add_column("Check", overflow="fold", style=WHITE)
+    table.add_column("Severity", overflow="fold", width=10)
+    table.add_column("Detail / Root Cause", overflow="fold")
+
+    SEV_COLOR = {
+        "CRITICAL": RED,
+        "HIGH": RED,
+        "MEDIUM": AMBER,
+        "LOW": BLUE,
+        "INFO": DIM,
+    }
+
+    if report.findings:
+        for f in report.findings:
+            color = SEV_COLOR.get(f.severity, WHITE)
+            table.add_row(f.check, f"[{color}]{f.severity}[/{color}]", f.detail)
+    else:
+        table.add_row("Systemic Database Recon", f"[{GREEN}]CLEAN[/{GREEN}]", "No exposed database services or credential leaks detected on this domain.")
+
+    console.print(table)
+    c = report.counts
+    parts = [
+        f"[{RED}]{c.get('CRITICAL', 0)} CRIT[/{RED}]",
+        f"[{RED}]{c.get('HIGH', 0)} HIGH[/{RED}]",
+        f"[{AMBER}]{c.get('MEDIUM', 0)} MED[/{AMBER}]",
+        f"[{BLUE}]{c.get('LOW', 0)} LOW[/{BLUE}]",
+        f"[{DIM}]{c.get('INFO', 0)} INFO[/{DIM}]",
+    ]
+    console.print(f"  summary: {'   '.join(parts)}")
+
+
 def run_full_audit(name: str) -> None:
     run_dns_records(name)
     run_dns_propagation(name)
@@ -393,6 +439,7 @@ def main() -> None:
             6: run_email_auth,
             7: run_tech_detect,
             8: run_ai_slop_detect,
+            9: run_database_audit,
         }
 
         console.print()

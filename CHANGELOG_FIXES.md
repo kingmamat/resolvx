@@ -18,7 +18,16 @@ Format tiap entri:
 ```
 
 <!-- ENTRI BARU DI BAWAH BARIS INI -->
-### Fix #6 — Tambah modul AI slop detector (menu 8)
+### Fix #7 — Tambah modul database_audit (Recon Database Keamanan, Menu 9)
+| | |
+|---|---|
+| **Tanggal** | 2026-11-06 |
+| **File** | `core/database_audit.py` (baru), `main.py` (opsi 9 + import + render rich table), `README.md` |
+| **Masalah** | Tidak ada fitur audit database tanpa kredensial (no-auth). Sebelumnya fitur security_check hanya memindai port sensitif, tanpa fokus pada fingerprinting banner service RDBMS (MySQL/PostgreSQL) dan analisis kebocoran file konfigurasi (.env) yang sering menjadi sumber bocornya kredensial database. |
+| **Akar** | Permintaan KMC: perlu audit keamanan database secara otomatis (struktur & konfigurasi) dengan tingkat risiko (Root Cause Analysis & Severity Level). |
+| **Fix** | Buat `core/database_audit.py` dengan `DatabaseFinding` & `DatabaseAuditReport` (dataclass). Jalankan 3 audit paralel: (1) `TCP probe` ke port 3306 & 5432, (2) `Banner Grab` untuk mendeteksi *version disclosure* (mis. string 5.7/8.0/9.0 pada payload MySQL), (3) `HTTP fetch` path sensitif (`.env`, `wp-config.php`) untuk mendeteksi kebocoran string konfig (`DB_PASSWORD`, `PGPASSWORD`). Severity ranking otomatis: jika kebocoran kredensial terdeteksi, statusnya CRITICAL. |
+| **Verifikasi** | `python main.py` ops 9 pada `google.com` → 0 vulnerability (karena Google tidak membuka port DB ke publik), tidak ada crash. Modul dapat diimpor tanpa error import (mengganti *relative import* broken dengan pola dari `security_check`). |
+| **Pelajaran** | Folder `core` di proyek ini tidak memiliki `__init__.py`, sehingga *relative import* (`from ..`) akan selalu gagal. Selalu gunakan import absolut (misal `from core.module import X`). |
 | | |
 |---|---|
 | **Tanggal** | 2026-11-04 |

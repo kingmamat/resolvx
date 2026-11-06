@@ -15,6 +15,7 @@ Semua jalan paralel, ringan, tanpa dependensi aneh-aneh.
 | 6 | **Email auth** | Cek SPF / DKIM / DMARC — ada gak record-nya, isinya apa, score 0–3, warning (policy none, multiple SPF, gak ada report address, dsb.) |
 | 7 | **Tech fingerprint** | Deteksi WAF/CDN (Cloudflare, Sucuri, Akamai, Vercel, Fastly, dll.), CMS (WordPress, Laravel, Next.js, React, dsb.), web server (nginx, Apache, IIS, dsb.) |
 | 8 | **AI slop detector** | Scrape teks artikel utama dari URL, deteksi indikasi konten AI via hybrid statistik (perplexity & burstiness) + kamus kata kunci slop (EN + ID) — skor 0–100% + confidence level + pola slop terdeteksi |
+| 9 | **Database Security & Leakage Recon** | Memindai port database (MySQL/PostgreSQL), mengecek kebocoran versi (version banner), dan memetakan file konfigurasi (seperti `.env`) yang tersimpan secara publik di internet |
 
 ## Install
 
@@ -41,6 +42,7 @@ Nanti muncul menu, tinggal pilih nomornya:
  6  Email auth (SPF/DKIM/DMARC)
  7  Tech fingerprint (CMS/WAF)
  8  AI slop detector
+ 9  Database Security & Leakage Recon
  0  Keluar
 ```
 
@@ -64,6 +66,7 @@ core/
   email_auth.py       SPF / DKIM / DMARC lookup + analisis
   tech_detect.py      CMS / WAF / web server fingerprinting
   ai_slop_detect.py   deteksi AI slop: scrape teks + analisis statistik/kamus
+  database_audit.py   Database Security Recon: port mapping, banner disclosure, & file leak
 utils/
   display.py          render rich: logo, tabel, status indicator
 ```
@@ -76,3 +79,4 @@ utils/
 - **DKIM detection** — coba 8 selector umum (default, google, mail, k1–s3, dsb.). Kalau domain pake selector custom, gak ketemu — normal, bukan bug.
 - **Tech fingerprint** — HTTP fetch sekali (follow redirect), inspeksi headers + body 8KB pertama. CMS framework yang render client-side (React SPA tanpa marker server-side) mungkin gak terdeteksi.
 - **AI slop detector** — fetch HTML (via requests + BeautifulSoup), buang nav/header/footer/script/style, lalu analisis: (1) variasi panjang kalimat & TTR (burstiness/perplexity proxy), (2) perulangan kalimat, (3) kemunculan kamus frasa LLM-preferred EN & ID. Skor final adalah weighted sum (40% keyword, 25% burstiness, 15% uniformitas, 20% repetisi), bukan klaim absolut — gunakan sebagai indikasi. Teks di bawah 100 kata dianggap tidak cukup data dan dilaporkan `failed`. Untuk integrasi web (Flask/FastAPI), panggil `core.ai_slop_detect.check_ai_slop(url)` — mengembalikan dict siap `json.dumps`.
+- **Database Security & Leakage Recon** — Audit tanpa kredensial (no-auth recon). Secara paralel memindai: (1) port MySQL (3306) & PostgreSQL (5432) yang terbuka, (2) indikasi *version disclosure* dari banner protocol yang di-expose, dan (3) keberadaan file sensitif di server web (seperti `.env` atau `wp-config.php`) yang berisi string kunci konfigurasi database. Jika ada satu pun string `DB_PASSWORD`, `PGPASSWORD`, atau `MYSQL_PWD` ditemukan di file yang terbuka, statusnya langsung `CRITICAL`.
